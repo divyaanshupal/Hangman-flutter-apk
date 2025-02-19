@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'data/streakData.dart';
+import 'data/streak_fetch.dart';
 import 'data/word_hints.dart';
 import 'package:hangman_game/rules_screen.dart';
 import 'package:hangman_game/game/figure_widget.dart';
@@ -119,7 +121,7 @@ class _GameScreenState extends State<GameScreen> {
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
-                updateStreak(); // Update streak before restarting
+                //updateStreak(); // Update streak before restarting
                 _restartGame();
               },
               child: const Text("Next"),
@@ -131,6 +133,7 @@ class _GameScreenState extends State<GameScreen> {
   }
   bool hasWon=false;
   void updateStreak() {
+    print("LOG : func called");
     currentStreak++;
     if (currentStreak > maxStreak) {
       maxStreak = currentStreak;
@@ -144,15 +147,25 @@ class _GameScreenState extends State<GameScreen> {
   @override
   Widget build(BuildContext context) {
     if (tries == 6) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async{
         resetStreak();
+        await savingStreak(currentStreak,maxStreak, FirebaseAuth.instance.currentUser!.uid);
         _showGameOverDialog();
       });
     }
 
     if (word.split("").every((letter) => selectedChar.contains(letter))) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        updateStreak();  // Update streak first
+      WidgetsBinding.instance.addPostFrameCallback((_) async{
+        //print("LOG : test 1");
+        updateStreak();
+        //print("LOG : test 2");
+        String ans = await savingStreak(currentStreak,maxStreak, FirebaseAuth.instance.currentUser!.uid);
+        if(ans!="done"){
+          print("LOG : $ans");// Update streak first
+        }else{
+          print("LOG : DONE");
+        }
+        print("LOG : test 3");// Update streak first
         _showWinDialog(); // Then show the dialog
       });
     }
@@ -163,12 +176,32 @@ class _GameScreenState extends State<GameScreen> {
         title: const Text("HANGMAN : THE GAME"),
         elevation: 0.0,
         backgroundColor: Colors.transparent,
+        actions: [
+            // Fire logo with current streak
+            Padding(
+              padding: const EdgeInsets.only(right: 16.0),
+              child: Row(
+                children: [
+                  const Icon(Icons.local_fire_department, color: Colors.orange), // Fire logo
+                  const SizedBox(width: 4), // Space between icon and text
+                  Text(
+                    "$currentStreak", // Current streak value
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
       ),
       drawer: Drawer(
         child: Column(
           children: [
             DrawerHeader(
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 color: Colors.blueAccent,
               ),
               child: Column(
@@ -185,12 +218,22 @@ class _GameScreenState extends State<GameScreen> {
                     ),
                   ),
                   const SizedBox(height: 5),
-                  Text(
-                    "Max Streak: $maxStreak",
-                    style: const TextStyle(
-                      color: Colors.white70,
-                      fontSize: 16,
-                    ),
+
+                  /// 🔹 Using FutureBuilder to Fetch Max Streak
+                  FutureBuilder<int>(
+                    future: StreakService.fetchMaxStreak(),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Text("Loading...",
+                            style: TextStyle(color: Colors.white70, fontSize: 16));
+                      } else if (snapshot.hasError) {
+                        return const Text("Error",
+                            style: TextStyle(color: Colors.red, fontSize: 16));
+                      } else {
+                        return Text("Max Streak: ${snapshot.data ?? 0}",
+                            style: const TextStyle(color: Colors.white70, fontSize: 16));
+                      }
+                    },
                   ),
                 ],
               ),
@@ -198,11 +241,12 @@ class _GameScreenState extends State<GameScreen> {
             ListTile(
               leading: const Icon(Icons.rule),
               title: const Text("Rules of Game"),
-              onTap:() {
-                Navigator.push(context,
+              onTap: () {
+                Navigator.push(
+                  context,
                   MaterialPageRoute(builder: (context) => const RulesScreen()),
                 );
-              }
+              },
             ),
             ListTile(
               leading: const Icon(Icons.logout),
