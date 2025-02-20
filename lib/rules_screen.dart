@@ -32,7 +32,10 @@ class RulesScreen extends StatelessWidget {
                 "2. You get a total of 6 incorrect guesses.\n"
                 "3. For every incorrect guess, a part of the hangman is drawn.\n"
                 "4. Use the hints provided to help you guess.\n"
-                "5. The game is over when you either guess the word or all parts of the hangman are drawn.",
+                "5. The game is over when you either guess the word or all parts of the hangman are drawn.\n"
+                "6. Every correct answer , the streak (at the right corner of game screen) will increase by one\n"
+                "7. Highest Score is the Maximum streak you have stored till the game history"
+                ,
                 style: TextStyle(
                   fontSize: 18,
                   color: Colors.white70,

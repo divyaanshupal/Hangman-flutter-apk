@@ -20,7 +20,7 @@ class GameScreen extends StatefulWidget {
 }
 
 class _GameScreenState extends State<GameScreen> {
-  var characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  var characters = "QWERTYUIOPASDFGHJKLZXCVBNM";
   late String word;
   late String hint;
   List<String> selectedChar = [];
@@ -121,7 +121,7 @@ class _GameScreenState extends State<GameScreen> {
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
-                //updateStreak(); // Update streak before restarting
+
                 _restartGame();
               },
               child: const Text("Next"),
@@ -143,32 +143,33 @@ class _GameScreenState extends State<GameScreen> {
     currentStreak=0;
   }
 
+  void _onLetterSelected(String letter) {
+    if (selectedChar.contains(letter) || tries >= 6) return; // Prevent duplicate selection
+
+    setState(() {
+      selectedChar.add(letter);
+      if (!word.contains(letter)) {
+        tries++;
+      }
+    });
+
+    // 🔹 Ensure Dialog appears after UI update
+    Future.delayed(Duration.zero, () {
+      if (tries == 6) {
+        resetStreak();
+        savingStreak(currentStreak, maxStreak, FirebaseAuth.instance.currentUser!.uid);
+        _showGameOverDialog();
+      } else if (word.split("").every((letter) => selectedChar.contains(letter))) {
+        updateStreak();
+        savingStreak(currentStreak, maxStreak, FirebaseAuth.instance.currentUser!.uid);
+        _showWinDialog();
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    if (tries == 6) {
-      WidgetsBinding.instance.addPostFrameCallback((_) async{
-        resetStreak();
-        await savingStreak(currentStreak,maxStreak, FirebaseAuth.instance.currentUser!.uid);
-        _showGameOverDialog();
-      });
-    }
 
-    if (word.split("").every((letter) => selectedChar.contains(letter))) {
-      WidgetsBinding.instance.addPostFrameCallback((_) async{
-        //print("LOG : test 1");
-        updateStreak();
-        //print("LOG : test 2");
-        String ans = await savingStreak(currentStreak,maxStreak, FirebaseAuth.instance.currentUser!.uid);
-        if(ans!="done"){
-          print("LOG : $ans");// Update streak first
-        }else{
-          print("LOG : DONE");
-        }
-        print("LOG : test 3");// Update streak first
-        _showWinDialog(); // Then show the dialog
-      });
-    }
 
     return Scaffold(
       appBar: AppBar(
@@ -178,8 +179,16 @@ class _GameScreenState extends State<GameScreen> {
         backgroundColor: Colors.transparent,
         actions: [
             // Fire logo with current streak
-            Padding(
-              padding: const EdgeInsets.only(right: 16.0),
+          Padding(
+            padding: const EdgeInsets.only(right: 16.0),
+            child: GestureDetector(
+              onTap: () {
+                // Navigate to the rules screen
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => RulesScreen()),
+                );
+              },
               child: Row(
                 children: [
                   const Icon(Icons.local_fire_department, color: Colors.orange), // Fire logo
@@ -195,6 +204,7 @@ class _GameScreenState extends State<GameScreen> {
                 ],
               ),
             ),
+          ),
         ],
       ),
       drawer: Drawer(
@@ -202,13 +212,29 @@ class _GameScreenState extends State<GameScreen> {
           children: [
             DrawerHeader(
               decoration: const BoxDecoration(
-                color: Colors.blueAccent,
+                //color: Colors.blueAccent, // Fallback background color
               ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+              child: Center(
+                child: Container(
+                  width: 100, // Set width to make it circular
+                  height: 100, // Set height equal to width
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle, // Makes it a circle
+                    image: DecorationImage(
+                      image: AssetImage('assests/profile.jpg'), // Corrected "assets" spelling
+                      fit: BoxFit.cover, // Ensures the image covers the circular area
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+            ListTile(
+              contentPadding: EdgeInsets.all(16), // Add padding around the content
+              //leading: const Icon(Icons.person, size: 60, color: Colors.white), // Leading icon
+              title: Column(
+                crossAxisAlignment: CrossAxisAlignment.start, // Align text to the start
                 children: [
-                  const Icon(Icons.person, size: 60, color: Colors.white),
-                  const SizedBox(height: 10),
                   Text(
                     "Player: ${FirebaseAuth.instance.currentUser?.email}",
                     style: const TextStyle(
@@ -230,8 +256,8 @@ class _GameScreenState extends State<GameScreen> {
                         return const Text("Error",
                             style: TextStyle(color: Colors.red, fontSize: 16));
                       } else {
-                        return Text("Max Streak: ${snapshot.data ?? 0}",
-                            style: const TextStyle(color: Colors.white70, fontSize: 16));
+                        return Text("Highest Score: ${snapshot.data ?? 0} 🔥",
+                            style: const TextStyle(color: Colors.white70, fontSize: 16,fontWeight: FontWeight.bold));
                       }
                     },
                   ),
@@ -253,6 +279,16 @@ class _GameScreenState extends State<GameScreen> {
               title: const Text("Logout"),
               onTap: _logout,
             ),
+            Expanded(child: SizedBox(height: 20)),
+            const Padding(padding: EdgeInsets.only(bottom: 18.0),
+              child: Text('Made by Divyanshu Pal',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey,
+              ),),
+
+            )
           ],
         ),
       ),
@@ -271,6 +307,7 @@ class _GameScreenState extends State<GameScreen> {
             ),
           ),
           DropdownButton<String>(
+
             value: selectedDifficulty,
             items: ['Easy', 'Medium', 'Hard'].map((String difficulty) {
               return DropdownMenuItem<String>(
@@ -285,6 +322,7 @@ class _GameScreenState extends State<GameScreen> {
               });
             },
           ),
+          SizedBox(height: 20,),
           Expanded(
             flex: 3,
             child: Column(
@@ -337,54 +375,72 @@ class _GameScreenState extends State<GameScreen> {
           ),
           Flexible(
             flex: 2,
-            child: Container(
-              padding: const EdgeInsets.all(8.0),
-              child: GridView.count(
-                physics: const NeverScrollableScrollPhysics(),
-                crossAxisSpacing: 4,
-                mainAxisSpacing: 4,
-                crossAxisCount: 7,
-                children: characters.split("").map((e) {
-                  return ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.black54,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                // Increase the button size by dividing by a smaller number (e.g., 5 instead of 7)
+                double buttonSize = constraints.maxWidth / 5 - 8; // Adjust size based on screen width
+
+                return Container(
+                  padding: const EdgeInsets.all(8.0),
+                  child: GridView.builder(
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 7,
+                      crossAxisSpacing: 4,
+                      mainAxisSpacing: 4,
+                      childAspectRatio: 1, // Ensures square buttons
                     ),
-                    onPressed: selectedChar.contains(e.toUpperCase())
-                        ? null
-                        : () {
-                      setState(() {
-                        selectedChar.add(e.toUpperCase());
-                        if (!word.split("").contains(e.toUpperCase())) {
-                          tries++;
-                        }
-                      });
+                    itemCount: characters.length,
+                    itemBuilder: (context, index) {
+                      String e = characters[index];
+
+                      return SizedBox(
+                        width: buttonSize,
+                        height: buttonSize,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            //backgroundColor: Colors.black54,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8), // Slightly rounded buttons
+                            ),
+                            padding: EdgeInsets.zero,
+                            alignment: Alignment.center,
+                          ),
+                          onPressed: selectedChar.contains(e.toUpperCase())
+                              ? null
+                              : () => _onLetterSelected(e.toUpperCase()),
+
+                          child: Text(
+                            e,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 27, // Increase the font size here
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      );
                     },
-                    child: Text(
-                      e,
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
+                  ),
+                );
+              },
             ),
           ),
-          Expanded(
-            child: Container(
-              alignment: Alignment.center,
-              child: const Text(
-                "Developed with ❤ by DIVYANSHU PAL",
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                  letterSpacing: 1,
-                ),
-              ),
-            ),
-          ),
+
+          // Expanded(
+          //   child: Container(
+          //     alignment: Alignment.center,
+          //     child: const Text(
+          //       "Developed with ❤ by DIVYANSHU PAL",
+          //       style: TextStyle(
+          //         color: Colors.white70,
+          //         fontWeight: FontWeight.bold,
+          //         fontSize: 14,
+          //         letterSpacing: 1,
+          //       ),
+          //     ),
+          //   ),
+          // ),
         ],
       ),
     );
